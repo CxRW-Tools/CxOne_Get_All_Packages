@@ -392,7 +392,7 @@ def main():
         print(f"\nError: {e}")
         if 'debug_logger' in locals():
             debug_logger.log(f"FATAL ERROR: {e}")
-        if config.debug:
+            if config.debug:
                 import traceback
                 debug_logger.log(f"Traceback: {traceback.format_exc()}")
             debug_logger.close()
