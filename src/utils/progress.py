@@ -93,7 +93,7 @@ class StageTracker:
             stage_name (str): Name of the stage
         """
         print(f"\n{'='*120}")
-        print(f"Stage: {stage_name}")
+        print(f"{stage_name}")
         print(f"{'='*120}")
         self.stats[stage_name] = {}
     
