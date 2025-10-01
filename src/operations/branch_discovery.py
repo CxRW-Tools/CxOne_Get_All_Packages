@@ -67,8 +67,7 @@ class BranchDiscovery(Operation):
         try:
             # Query scans for this project to extract branch names
             params = {
-                'project-id': project.id,
-                'limit': 100
+                'project-id': project.id
             }
             
             scans_data = self.api_client.get_paginated('/api/scans', params=params)

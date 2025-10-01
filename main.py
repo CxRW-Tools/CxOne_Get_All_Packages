@@ -34,7 +34,55 @@ def parse_args():
     parser.add_argument('--debug', action='store_true', help='Enable debug output')
     parser.add_argument('--max-workers', type=int, help='Maximum worker threads for report generation')
     parser.add_argument('--output-dir', help='Output directory for final CSV')
+    parser.add_argument('--retry-failed', help='Path to failed reports CSV file to retry only those scans')
     return parser.parse_args()
+
+def load_failed_scans(failed_csv_path):
+    """Load scans from a failed reports CSV file.
+    
+    Args:
+        failed_csv_path (str): Path to the failed reports CSV file
+        
+    Returns:
+        list: List of Scan objects from the CSV
+        
+    Raises:
+        FileNotFoundError: If the CSV file doesn't exist
+        ValueError: If the CSV format is invalid
+    """
+    import csv
+    import os
+    from src.models.scan import Scan
+    
+    if not os.path.exists(failed_csv_path):
+        raise FileNotFoundError(f"Failed reports file not found: {failed_csv_path}")
+    
+    scans = []
+    
+    with open(failed_csv_path, 'r', encoding='utf-8') as f:  # nosec B113 - user-provided file path
+        reader = csv.DictReader(f)
+        
+        # Validate header
+        expected_headers = {'ProjectName', 'ProjectId', 'BranchName', 'ScanId', 'ScanDate'}
+        actual_headers = set(reader.fieldnames or [])
+        
+        if not expected_headers.issubset(actual_headers):
+            missing = expected_headers - actual_headers
+            raise ValueError(f"Invalid CSV format. Missing headers: {missing}")
+        
+        for row in reader:
+            scan = Scan(
+                scan_id=row['ScanId'],
+                project_id=row['ProjectId'],
+                project_name=row['ProjectName'],
+                branch_name=row['BranchName'],
+                status='Completed',  # Assume completed since we're retrying
+                engines=['sca'],
+                created_at=row['ScanDate']
+            )
+            scans.append(scan)
+    
+    return scans
 
 def main():
     """Main entry point."""
@@ -67,14 +115,14 @@ def main():
         print(f"Configuration error: {error}")
         sys.exit(1)
 
-    print("="*80)
+    print("="*120)
     print("CxOne SCA Package Aggregator")
-    print("="*80)
+    print("="*120)
     print(f"Tenant: {config.tenant_name}")
     print(f"Base URL: {config.base_url}")
     print(f"Output Directory: {config.output_directory}")
     print(f"Max Report Workers: {config.max_workers_reports}")
-    print("="*80)
+    print("="*120)
 
     # Initialize auth manager
     auth_manager = AuthManager(
@@ -102,67 +150,77 @@ def main():
         # Setup directories
         file_manager.setup_directories()
         
-        # ========================================
-        # Stage 1: Discover Projects
-        # ========================================
-        stage_tracker.start_stage("Stage 1: Discovering Projects")
-        
-        project_discovery = ProjectDiscovery(config, auth_manager, api_client, progress_tracker)
-        projects = project_discovery.execute()
-        
-        if not projects:
-            print("No projects found. Exiting.")
-            sys.exit(0)
-        
-        stage_tracker.end_stage(
-            "Stage 1: Discovering Projects",
-            total_projects=len(projects)
-        )
-        
-        # ========================================
-        # Stage 2: Discover Branches
-        # ========================================
-        stage_tracker.start_stage("Stage 2: Discovering Branches")
-        
-        progress_bar = progress_tracker.create_bar(len(projects), "Fetching branches", "projects")
-        
-        branch_discovery = BranchDiscovery(config, auth_manager, api_client, progress_tracker)
-        branches = branch_discovery.execute(projects)
-        
-        progress_tracker.close()
-        
-        if not branches:
-            print("No branches found. Exiting.")
-            sys.exit(0)
-        
-        avg_branches = len(branches) / len(projects) if projects else 0
-        stage_tracker.end_stage(
-            "Stage 2: Discovering Branches",
-            total_branches=len(branches),
-            avg_branches_per_project=f"{avg_branches:.1f}"
-        )
-        
-        # ========================================
-        # Stage 3: Find Latest SCA Scans
-        # ========================================
-        stage_tracker.start_stage("Stage 3: Finding Latest SCA Scans")
-        
-        progress_bar = progress_tracker.create_bar(len(branches), "Finding SCA scans", "branches")
-        
-        scan_finder = ScanFinder(config, auth_manager, api_client, progress_tracker)
-        scans = scan_finder.execute(branches, exception_reporter)
-        
-        progress_tracker.close()
-        
-        if not scans:
-            print("No SCA scans found. Exiting.")
-            sys.exit(0)
-        
-        stage_tracker.end_stage(
-            "Stage 3: Finding Latest SCA Scans",
-            scans_found=len(scans),
-            no_sca_scans=len(branches) - len(scans)
-        )
+        # Check if in retry mode
+        if args.retry_failed:
+            print(f"\n⚠️  RETRY MODE: Loading scans from {args.retry_failed}")
+            scans = load_failed_scans(args.retry_failed)
+            print(f"✓ Loaded {len(scans)} failed scans for retry\n")
+            
+            # Set dummy values for summary statistics
+            projects = []
+            branches = []
+        else:
+            # ========================================
+            # Stage 1: Discover Projects
+            # ========================================
+            stage_tracker.start_stage("Stage 1: Discovering Projects")
+            
+            project_discovery = ProjectDiscovery(config, auth_manager, api_client, progress_tracker)
+            projects = project_discovery.execute()
+            
+            if not projects:
+                print("No projects found. Exiting.")
+                sys.exit(0)
+            
+            stage_tracker.end_stage(
+                "Stage 1: Discovering Projects",
+                total_projects=len(projects)
+            )
+            
+            # ========================================
+            # Stage 2: Discover Branches
+            # ========================================
+            stage_tracker.start_stage("Stage 2: Discovering Branches")
+            
+            progress_bar = progress_tracker.create_bar(len(projects), "Fetching branches", "projects")
+            
+            branch_discovery = BranchDiscovery(config, auth_manager, api_client, progress_tracker)
+            branches = branch_discovery.execute(projects)
+            
+            progress_tracker.close()
+            
+            if not branches:
+                print("No branches found. Exiting.")
+                sys.exit(0)
+            
+            avg_branches = len(branches) / len(projects) if projects else 0
+            stage_tracker.end_stage(
+                "Stage 2: Discovering Branches",
+                total_branches=len(branches),
+                avg_branches_per_project=f"{avg_branches:.1f}"
+            )
+            
+            # ========================================
+            # Stage 3: Find Latest SCA Scans
+            # ========================================
+            stage_tracker.start_stage("Stage 3: Finding Latest SCA Scans")
+            
+            progress_bar = progress_tracker.create_bar(len(branches), "Finding SCA scans", "branches")
+            
+            scan_finder = ScanFinder(config, auth_manager, api_client, progress_tracker)
+            scans = scan_finder.execute(branches, exception_reporter)
+            
+            progress_tracker.close()
+            
+            if not scans:
+                print("No SCA scans found. Exiting.")
+                sys.exit(0)
+            
+            stage_tracker.end_stage(
+                "Stage 3: Finding Latest SCA Scans",
+                scans_found=len(scans),
+                no_sca_scans=len(branches) - len(scans)
+            )
         
         # ========================================
         # Stage 4: Generate SCA Reports
@@ -222,12 +280,12 @@ def main():
         minutes = int((elapsed_time % 3600) // 60)
         seconds = int(elapsed_time % 60)
         
-        # Update report statistics
+        # Update report statistics (handle retry mode)
         exception_reporter.update_stats(
-            total_projects=len(projects),
-            total_branches=len(branches),
+            total_projects=len(projects) if not args.retry_failed else 0,
+            total_branches=len(branches) if not args.retry_failed else 0,
             scans_found=len(scans),
-            scans_not_found=len(branches) - len(scans),
+            scans_not_found=len(branches) - len(scans) if not args.retry_failed else 0,
             reports_generated=len(report_metadata),
             reports_failed=len(scans) - len(report_metadata),
             packages_merged=total_rows,
@@ -239,27 +297,39 @@ def main():
         )
         
         report_path = exception_reporter.generate_report(output_path)
+        failed_csv_path = exception_reporter.generate_failed_reports_csv(output_path)
         
         # ========================================
         # Final Summary
         # ========================================
         
-        print("\n" + "="*80)
-        print("EXECUTION SUMMARY")
-        print("="*80)
+        print("\n" + "="*120)
+        if args.retry_failed:
+            print("RETRY EXECUTION SUMMARY")
+        else:
+            print("EXECUTION SUMMARY")
+        print("="*120)
         print(f"✓ Successfully completed!")
         print(f"\nStatistics:")
-        print(f"  - Total projects: {len(projects)}")
-        print(f"  - Total branches: {len(branches)}")
-        print(f"  - Branches with SCA: {len(scans)}")
+        if not args.retry_failed:
+            print(f"  - Total projects: {len(projects)}")
+            print(f"  - Total branches: {len(branches)}")
+            print(f"  - Branches with SCA: {len(scans)}")
+        else:
+            print(f"  - Retry attempts: {len(scans)}")
         print(f"  - Reports generated: {len(report_metadata)}")
+        print(f"  - Reports failed: {len(scans) - len(report_metadata)}")
         print(f"  - Total packages: {total_rows:,}")
         print(f"\nOutput:")
         print(f"  - Data File: {output_path}")
         print(f"  - Size: {get_file_size(output_path)}")
         print(f"  - Report File: {report_path}")
+        if failed_csv_path:
+            print(f"  - Failed Reports: {failed_csv_path}")
+            if not args.retry_failed:
+                print(f"\n💡 Tip: Retry failed reports using: --retry-failed {failed_csv_path}")
         print(f"\nExecution time: {hours}h {minutes}m {seconds}s")
-        print("="*80)
+        print("="*120)
         
     except KeyboardInterrupt:
         print("\n\nOperation cancelled by user.")

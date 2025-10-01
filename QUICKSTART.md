@@ -97,7 +97,7 @@ CxOne SCA Package Aggregator
 Tenant: myorg
 Base URL: https://ast.checkmarx.net
 Output Directory: ./output
-Max Report Workers: 5
+Max Report Workers: 20
 ================================================================================
 
 Stage 1: Discovering Projects
@@ -132,7 +132,7 @@ Execution time: 2h 15m 30s
 - `CXONE_TENANT` - Your tenant name
 - `CXONE_API_KEY` - Your API key
 - `CXONE_DEBUG` - Set to `true` for detailed logging
-- `CXONE_MAX_WORKERS` - Number of worker threads (default: 10)
+- `CXONE_MAX_WORKERS` - Number of worker threads (default: 20)
 - `CXONE_OUTPUT_DIR` - Output directory (default: ./output)
 
 ### Command-Line Arguments
@@ -148,7 +148,7 @@ Execution time: 2h 15m 30s
 
 For large tenants (1000+ projects):
 - The tool uses multi-threading by default
-- Adjust `--max-workers` based on your system (default: 10)
+- Adjust `--max-workers` based on your system (default: 20)
 - Expected runtime: Several hours for large tenants
 - Memory usage is optimized through streaming
 

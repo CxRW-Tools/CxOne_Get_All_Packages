@@ -46,12 +46,14 @@ class ExceptionReporter:
             'error': error_message
         })
     
-    def add_report_generation_error(self, project_name, branch_name, scan_id, error_message):
-        """Record a report generation error."""
+    def add_report_generation_error(self, project_name, project_id, branch_name, scan_id, scan_date, error_message):
+        """Record a report generation error with full metadata."""
         self.report_generation_errors.append({
             'project': project_name,
+            'project_id': project_id,
             'branch': branch_name,
             'scan_id': scan_id,
+            'scan_date': scan_date,
             'error': error_message
         })
     
@@ -81,6 +83,43 @@ class ExceptionReporter:
     def update_stats(self, **kwargs):
         """Update summary statistics."""
         self.stats.update(kwargs)
+    
+    def generate_failed_reports_csv(self, output_csv_path):
+        """Generate a CSV file with all failed report generations.
+        
+        Args:
+            output_csv_path (str): Path to the main CSV output file
+            
+        Returns:
+            str: Path to the generated failed reports CSV file, or None if no failures
+        """
+        if not self.report_generation_errors:
+            return None
+        
+        import csv
+        
+        # Generate failed reports filename
+        failed_csv_path = os.path.splitext(output_csv_path)[0] + '_failed-reports.csv'
+        
+        # Write CSV with failed reports
+        with open(failed_csv_path, 'w', newline='', encoding='utf-8') as f:  # nosec B113 - controlled path
+            writer = csv.writer(f)
+            
+            # Header
+            writer.writerow(['ProjectName', 'ProjectId', 'BranchName', 'ScanId', 'ScanDate', 'ErrorMessage'])
+            
+            # Data rows
+            for error in self.report_generation_errors:
+                writer.writerow([
+                    error['project'],
+                    error['project_id'],
+                    error['branch'],
+                    error['scan_id'],
+                    error['scan_date'],
+                    error['error']
+                ])
+        
+        return failed_csv_path
     
     def generate_report(self, output_csv_path):
         """Generate and save the exception report.
@@ -147,12 +186,14 @@ class ExceptionReporter:
             lines.append("=" * 80)
             lines.append(f"REPORT GENERATION ERRORS ({len(self.report_generation_errors)})")
             lines.append("=" * 80)
+            lines.append("NOTE: See *_failed-reports.csv for full details and retry capability")
             lines.append("")
             
             for idx, error in enumerate(self.report_generation_errors, 1):
                 lines.append(f"{idx}. Project: {error['project']}")
                 lines.append(f"   Branch: {error['branch']}")
                 lines.append(f"   Scan ID: {error['scan_id']}")
+                lines.append(f"   Scan Date: {error['scan_date']}")
                 lines.append(f"   Error: {error['error']}")
                 lines.append("")
         
@@ -231,7 +272,7 @@ class ExceptionReporter:
         lines.append("=" * 80)
         
         # Write to file
-        with open(report_path, 'w', encoding='utf-8') as f:  # nosec - controlled path
+        with open(report_path, 'w', encoding='utf-8') as f:  # nosec B113 - controlled path
             f.write('\n'.join(lines))
         
         return report_path

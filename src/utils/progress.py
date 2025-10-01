@@ -33,7 +33,7 @@ class ProgressTracker:
             total=total,
             desc=description,
             unit=unit,
-            ncols=100,
+            ncols=120,
             file=sys.stdout
         )
         return self.current_bar
@@ -92,9 +92,9 @@ class StageTracker:
         Args:
             stage_name (str): Name of the stage
         """
-        print(f"\n{'='*80}")
+        print(f"\n{'='*120}")
         print(f"Stage: {stage_name}")
-        print(f"{'='*80}")
+        print(f"{'='*120}")
         self.stats[stage_name] = {}
     
     def end_stage(self, stage_name, **stats):
@@ -120,9 +120,9 @@ class StageTracker:
     
     def print_summary(self):
         """Print a summary of all stages."""
-        print(f"\n{'='*80}")
+        print(f"\n{'='*120}")
         print("SUMMARY")
-        print(f"{'='*80}")
+        print(f"{'='*120}")
         
         for stage, stats in self.stats.items():
             print(f"\n{stage}:")
