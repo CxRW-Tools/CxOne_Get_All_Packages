@@ -44,8 +44,7 @@ class BranchDiscovery(Operation):
                     if self.progress:
                         self.progress.update(1)
                         self.progress.set_postfix(
-                            total_branches=len(all_branches),
-                            current_project=project.name[:30]
+                            total_branches=len(all_branches)
                         )
                         
                 except Exception as e:
