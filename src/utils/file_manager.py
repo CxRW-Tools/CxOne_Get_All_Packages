@@ -51,14 +51,26 @@ class FileManager:
         Returns:
             str: Full path to output file
         """
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        if not hasattr(self, '_output_path'):
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            filename = self.config.output_filename_template.format(
+                tenant=self.config.tenant_name,
+                timestamp=timestamp
+            )
+            
+            self._output_path = os.path.join(self.config.output_directory, filename)
         
-        filename = self.config.output_filename_template.format(
-            tenant=self.config.tenant_name,
-            timestamp=timestamp
-        )
+        return self._output_path
+    
+    def get_debug_log_path(self):
+        """Generate the debug log file path.
         
-        return os.path.join(self.config.output_directory, filename)
+        Returns:
+            str: Full path to debug log file
+        """
+        output_path = self.get_output_file_path()
+        return os.path.splitext(output_path)[0] + '_debug.txt'
     
     def cleanup_temp_files(self):
         """Remove all temporary files."""

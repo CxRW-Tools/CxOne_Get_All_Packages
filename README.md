@@ -118,7 +118,7 @@ python main.py --output-dir "C:\Reports" --max-workers 10
 
 ## Output
 
-The tool generates two files in the output directory:
+The tool generates three files in the output directory:
 
 ### 1. Data File (CSV)
 ```
@@ -150,6 +150,22 @@ The report includes:
 - **General Warnings** - Other warnings encountered during execution
 
 The report is organized by category (not chronologically) for easy review and debugging.
+
+### 3. Debug Log (TXT)
+```
+sca_packages_{tenant}_{timestamp}_debug.txt
+```
+
+A live debug log that is **always generated** (regardless of `--debug` flag) containing:
+- Timestamped entries for all operations
+- Stage transitions and progress milestones
+- Detailed error messages and stack traces
+- Real-time updates (flushed immediately, can be monitored during execution)
+
+This file is invaluable for troubleshooting long-running jobs and can be tailed during execution:
+```powershell
+Get-Content -Path "output\sca_packages_tenant_20251001_143022_debug.txt" -Wait -Tail 50
+```
 
 ## Performance Considerations
 

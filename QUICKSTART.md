@@ -60,7 +60,7 @@ The tool will:
 
 ## Output
 
-Two files will be created in the `./output` directory:
+Three files will be created in the `./output` directory:
 
 ### Data File
 ```
@@ -87,6 +87,20 @@ This report contains:
 - Lists of branches without SCA scans
 - Details of any errors or warnings encountered
 - Organized by category for easy review
+
+### Debug Log
+```
+sca_packages_{tenant}_{timestamp}_debug.txt
+```
+
+A **live debug log** (always generated) with:
+- Timestamped entries for all operations
+- Progress milestones and stage transitions
+- Detailed error messages
+- Can be monitored during execution using:
+  ```powershell
+  Get-Content -Path "output\sca_packages_tenant_20251001_143022_debug.txt" -Wait -Tail 50
+  ```
 
 ## Example Output
 

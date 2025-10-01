@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 class APIClient:
     """HTTP client for CxOne API with pagination and retry support."""
     
-    def __init__(self, base_url, auth_manager, config, debug=False):
+    def __init__(self, base_url, auth_manager, config, debug=False, debug_logger=None):
         """Initialize the API client.
         
         Args:
@@ -16,11 +16,13 @@ class APIClient:
             auth_manager (AuthManager): Authentication manager instance
             config (Config): Configuration instance
             debug (bool): Enable debug output
+            debug_logger (DebugLogger, optional): Debug logger instance
         """
         self.base_url = base_url
         self.auth = auth_manager
         self.config = config
         self.debug = debug
+        self.logger = debug_logger
     
     def get_paginated(self, endpoint, params=None, max_results=None):
         """Fetch all results from a paginated endpoint.

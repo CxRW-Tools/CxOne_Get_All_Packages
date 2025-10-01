@@ -8,13 +8,15 @@ import tempfile
 class CSVStreamer:
     """Stream and merge CSV files efficiently."""
     
-    def __init__(self, debug=False):
+    def __init__(self, debug=False, debug_logger=None):
         """Initialize the CSV streamer.
         
         Args:
             debug (bool): Enable debug output
+            debug_logger (DebugLogger, optional): Debug logger instance
         """
         self.debug = debug
+        self.logger = debug_logger
     
     def merge_files(self, file_metadata_list, output_path, exception_reporter=None):
         """Merge multiple ZIP files (extracting Packages.csv) into one CSV.
