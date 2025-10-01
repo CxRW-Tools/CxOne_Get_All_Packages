@@ -53,8 +53,11 @@ class CSVStreamer:
                     packages_data = self._extract_packages_from_zip(file_path)
                     
                     if not packages_data:
+                        warning_msg = f"No Packages.csv found in {file_path}"
+                        if self.logger:
+                            self.logger.log(f"  WARNING: {warning_msg} ({metadata['project_name']}/{metadata['branch_name']})")
                         if self.debug:
-                            print(f"  Warning: No Packages.csv found in {file_path}")
+                            print(f"  Warning: {warning_msg}")
                         # Report ZIP extraction warning
                         if self.exception_reporter:
                             self.exception_reporter.add_zip_extraction_warning(
@@ -117,8 +120,11 @@ class CSVStreamer:
                         file_rows += 1
                         total_rows += 1
                     
-                    if self.debug and file_rows > 0:
-                        print(f"  Processed {metadata['project_name']}/{metadata['branch_name']}: {file_rows} packages")
+                    if file_rows > 0:
+                        if self.logger:
+                            self.logger.log(f"  Merged {file_rows} packages from {metadata['project_name']}/{metadata['branch_name']}")
+                        if self.debug:
+                            print(f"  Processed {metadata['project_name']}/{metadata['branch_name']}: {file_rows} packages")
                     
                     files_processed += 1
                     

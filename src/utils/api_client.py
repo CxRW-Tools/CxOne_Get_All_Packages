@@ -46,6 +46,8 @@ class APIClient:
             page_params['limit'] = limit
             page_params['offset'] = offset
             
+            if self.logger:
+                self.logger.log(f"API: GET {endpoint} (offset={offset}, limit={limit})")
             if self.debug:
                 print(f"  Fetching {endpoint} (offset={offset}, limit={limit})...")
             
@@ -78,6 +80,8 @@ class APIClient:
             
             all_results.extend(results)
             
+            if self.logger:
+                self.logger.log(f"API: Retrieved {len(results)} items (total so far: {len(all_results)})")
             if self.debug:
                 print(f"    Retrieved {len(results)} items (total: {len(all_results)})")
             
@@ -130,10 +134,14 @@ class APIClient:
             except requests.exceptions.Timeout:
                 if attempt < self.config.max_retries - 1:
                     wait_time = self.config.retry_delay * (2 ** attempt)
+                    if self.logger:
+                        self.logger.log(f"API: Timeout on {url}. Retrying in {wait_time}s... (attempt {attempt + 1}/{self.config.max_retries})")
                     if self.debug:
                         print(f"    Timeout. Retrying in {wait_time}s...")
                     time.sleep(wait_time)
                 else:
+                    if self.logger:
+                        self.logger.log(f"API: Request timed out after {self.config.max_retries} attempts: {url}")
                     if self.debug:
                         print(f"    Request timed out after {self.config.max_retries} attempts")
                     return None
@@ -141,10 +149,14 @@ class APIClient:
             except requests.exceptions.RequestException as e:
                 if attempt < self.config.max_retries - 1:
                     wait_time = self.config.retry_delay * (2 ** attempt)
+                    if self.logger:
+                        self.logger.log(f"API: Error on {url}: {e}. Retrying in {wait_time}s... (attempt {attempt + 1}/{self.config.max_retries})")
                     if self.debug:
                         print(f"    Error: {e}. Retrying in {wait_time}s...")
                     time.sleep(wait_time)
                 else:
+                    if self.logger:
+                        self.logger.log(f"API: Request failed after {self.config.max_retries} attempts: {url} - {e}")
                     if self.debug:
                         print(f"    Request failed after {self.config.max_retries} attempts: {e}")
                     return None

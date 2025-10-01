@@ -21,6 +21,8 @@ class BranchDiscovery(Operation):
         """
         all_branches = []
         
+        if self.logger:
+            self.logger.log(f"Discovering branches from scans for {len(projects)} projects...")
         if self.config.debug:
             print(f"\nDiscovering branches from scans for {len(projects)} projects...")
         
@@ -47,9 +49,13 @@ class BranchDiscovery(Operation):
                         )
                         
                 except Exception as e:
+                    if self.logger:
+                        self.logger.log(f"ERROR: Failed to fetch branches for {project.name}: {e}")
                     if self.config.debug:
                         print(f"\nError fetching branches for {project.name}: {e}")
         
+        if self.logger:
+            self.logger.log(f"Found {len(all_branches)} total branches across all projects")
         if self.config.debug:
             print(f"\nFound {len(all_branches)} total branches across all projects")
         
@@ -92,9 +98,14 @@ class BranchDiscovery(Operation):
                 )
                 branches.append(branch)
             
+            if self.logger:
+                self.logger.log(f"  Project {project.name}: Found {len(branches)} unique branches from {len(scans_data)} scans")
+            
             return branches
             
         except Exception as e:
+            if self.logger:
+                self.logger.log(f"ERROR: Exception in branch discovery for {project.name}: {e}")
             if self.config.debug:
                 print(f"\nError fetching branches for {project.name}: {e}")
             return []

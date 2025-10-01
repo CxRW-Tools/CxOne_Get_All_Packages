@@ -21,6 +21,8 @@ class ScanFinder(Operation):
         not_found_count = 0
         error_count = 0
         
+        if self.logger:
+            self.logger.log(f"Finding latest SCA scans for {len(branches)} branches...")
         if self.config.debug:
             print(f"\nFinding latest SCA scans for {len(branches)} branches...")
         
@@ -40,8 +42,12 @@ class ScanFinder(Operation):
                     
                     if scan:
                         scans_found.append(scan)
+                        if self.logger:
+                            self.logger.log(f"  ✓ Found SCA scan for {branch.project_name}/{branch.branch_name}: {scan.scan_id}")
                     else:
                         not_found_count += 1
+                        if self.logger:
+                            self.logger.log(f"  ✗ No SCA scan found for {branch.project_name}/{branch.branch_name}")
                         # Report branch with no SCA scan
                         if exception_reporter:
                             exception_reporter.add_branch_no_sca(branch.project_name, branch.branch_name)
@@ -56,12 +62,16 @@ class ScanFinder(Operation):
                         
                 except Exception as e:
                     error_count += 1
+                    if self.logger:
+                        self.logger.log(f"ERROR: Failed to find scan for {branch.project_name}/{branch.branch_name}: {e}")
                     if self.config.debug:
                         print(f"\nError finding scan for {branch.project_name}/{branch.branch_name}: {e}")
                     # Report scan error
                     if exception_reporter:
                         exception_reporter.add_scan_error(branch.project_name, branch.branch_name, str(e))
         
+        if self.logger:
+            self.logger.log(f"Scan discovery completed: {len(scans_found)} found, {not_found_count} not found, {error_count} errors")
         if self.config.debug:
             print(f"\nScan discovery completed:")
             print(f"  - Scans found: {len(scans_found)}")

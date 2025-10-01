@@ -25,6 +25,8 @@ class ReportGenerator(Operation):
         failed_count = 0
         self.exception_reporter = exception_reporter
         
+        if self.logger:
+            self.logger.log(f"Generating SCA reports for {len(scans)} scans with {self.config.max_workers_reports} workers...")
         if self.config.debug:
             print(f"\nGenerating SCA reports for {len(scans)} scans...")
         
@@ -44,6 +46,8 @@ class ReportGenerator(Operation):
                     file_path, metadata = result
                     report_metadata.append((file_path, metadata))
                     success_count += 1
+                    if self.logger:
+                        self.logger.log(f"  ✓ Report generated for {scan.project_name}/{scan.branch_name} (scan: {scan.scan_id})")
                     
                     if self.progress:
                         self.progress.update(1)
@@ -57,7 +61,12 @@ class ReportGenerator(Operation):
                     retry_success = False
                     last_error = str(e)
                     
+                    if self.logger:
+                        self.logger.log(f"  ✗ Initial attempt failed for {scan.project_name}/{scan.branch_name} (scan: {scan.scan_id}): {e}")
+                    
                     for retry_attempt in range(1, 4):  # Retry 3 times (attempts 2, 3, 4)
+                        if self.logger:
+                            self.logger.log(f"     RETRY {retry_attempt}/3 for scan {scan.scan_id}")
                         if self.config.debug:
                             print(f"\nRetrying report generation for scan {scan.scan_id} (attempt {retry_attempt + 1}/4)")
                         
@@ -68,6 +77,8 @@ class ReportGenerator(Operation):
                             success_count += 1
                             retry_success = True
                             
+                            if self.logger:
+                                self.logger.log(f"     ✓ Retry {retry_attempt} SUCCESSFUL for scan {scan.scan_id}")
                             if self.config.debug:
                                 print(f"\n✓ Retry successful on attempt {retry_attempt + 1} for scan {scan.scan_id}")
                             
@@ -75,6 +86,8 @@ class ReportGenerator(Operation):
                             
                         except Exception as retry_error:
                             last_error = str(retry_error)
+                            if self.logger:
+                                self.logger.log(f"     ✗ Retry {retry_attempt} failed for scan {scan.scan_id}: {retry_error}")
                             if self.config.debug:
                                 print(f"\nRetry attempt {retry_attempt + 1} failed for scan {scan.scan_id}: {retry_error}")
                             continue
@@ -82,6 +95,8 @@ class ReportGenerator(Operation):
                     # If all retries failed
                     if not retry_success:
                         failed_count += 1
+                        if self.logger:
+                            self.logger.log(f"  ✗✗ FAILED after 4 attempts for {scan.project_name}/{scan.branch_name} (scan: {scan.scan_id}): {last_error}")
                         if self.config.debug:
                             print(f"\n✗ All retry attempts exhausted for scan {scan.scan_id}")
                         
@@ -103,6 +118,8 @@ class ReportGenerator(Operation):
                             failed=failed_count
                         )
         
+        if self.logger:
+            self.logger.log(f"Report generation completed: {success_count} generated, {failed_count} failed")
         if self.config.debug:
             print(f"\nReport generation completed:")
             print(f"  - Generated: {success_count}")
@@ -135,9 +152,13 @@ class ReportGenerator(Operation):
         response = self.api_client.post_sca_export('/api/sca/export/requests', json_data=export_data)
         
         if not response:
+            if self.logger:
+                self.logger.log(f"  API error: No response from export request for scan {scan.scan_id}")
             raise Exception(f"Failed to request report generation - API returned no response")
         
         # Debug: Print full response to understand structure
+        if self.logger:
+            self.logger.log(f"  Export request response for scan {scan.scan_id}: {response}")
         if self.config.debug:
             print(f"\nSCA Export Response: {response}")
         
@@ -231,12 +252,17 @@ class ReportGenerator(Operation):
                 status = response.get('exportStatus', '').lower()
                 last_status = status
                 
-                if self.config.debug and attempt == 0:
-                    print(f"\nExport {export_id} initial status: {status}")
+                if attempt == 0:
+                    if self.logger:
+                        self.logger.log(f"  Export {export_id} initial status: {status}")
+                    if self.config.debug:
+                        print(f"\nExport {export_id} initial status: {status}")
                 
                 if status == 'completed':
                     # Return the fileUrl for downloading
                     file_url = response.get('fileUrl')
+                    if self.logger:
+                        self.logger.log(f"  Export {export_id} completed after {elapsed:.1f}s")
                     if self.config.debug:
                         print(f"\nExport {export_id} completed after {elapsed:.1f}s")
                     if file_url:
@@ -247,11 +273,16 @@ class ReportGenerator(Operation):
                         
                 elif status in ['failed', 'error']:
                     error_msg = response.get('errorMessage', 'Unknown error')
+                    if self.logger:
+                        self.logger.log(f"  Export {export_id} FAILED with status '{status}': {error_msg}")
                     raise Exception(f"Export failed with status '{status}': {error_msg}")
                 
                 # Still processing - wait with exponential backoff
-                if self.config.debug and attempt % 10 == 0 and attempt > 0:
-                    print(f"\nExport {export_id} still processing... (elapsed: {elapsed/60:.1f}m, wait: {wait_time}s)")
+                if attempt % 10 == 0 and attempt > 0:
+                    if self.logger:
+                        self.logger.log(f"  Export {export_id} still processing... (elapsed: {elapsed/60:.1f}m, next wait: {wait_time}s)")
+                    if self.config.debug:
+                        print(f"\nExport {export_id} still processing... (elapsed: {elapsed/60:.1f}m, wait: {wait_time}s)")
                 
                 time.sleep(wait_time)  # nosec B311 - intentional polling delay
                 
