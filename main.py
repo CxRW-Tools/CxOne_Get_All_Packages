@@ -77,8 +77,6 @@ def load_failed_scans(failed_csv_path):
                 project_id=row['ProjectId'],
                 project_name=row['ProjectName'],
                 branch_name=row['BranchName'],
-                status='Completed',  # Assume completed since we're retrying
-                engines=['sca'],
                 created_at=row['ScanDate']
             )
             scans.append(scan)

@@ -36,7 +36,9 @@ This tool automates the process of:
 │   │   ├── api_client.py    # API client with pagination
 │   │   ├── progress.py      # Progress tracking
 │   │   ├── file_manager.py  # File management
-│   │   └── csv_streamer.py  # CSV merging
+│   │   ├── csv_streamer.py  # CSV merging
+│   │   ├── exception_reporter.py  # Exception tracking
+│   │   └── debug_logger.py  # Live debug logging
 │   └── operations/          # Business logic operations
 │       ├── base.py          # Base operation class
 │       ├── project_discovery.py
@@ -45,6 +47,8 @@ This tool automates the process of:
 │       ├── report_generator.py
 │       └── data_merger.py
 ├── main.py                  # Main entry point
+├── csv_to_xlsx.py          # Helper: CSV to Excel converter
+├── filter_csv.py           # Helper: CSV filtering tool
 ├── requirements.txt         # Dependencies
 └── README.md               # This file
 ```
@@ -165,6 +169,93 @@ A live debug log that is **always generated** (regardless of `--debug` flag) con
 This file is invaluable for troubleshooting long-running jobs and can be tailed during execution:
 ```powershell
 Get-Content -Path "output\sca_packages_tenant_20251001_143022_debug.txt" -Wait -Tail 50
+```
+
+## Helper Tools
+
+The repository includes two helper scripts for post-processing the generated CSV files:
+
+### 1. CSV to Excel Converter (`csv_to_xlsx.py`)
+
+Converts large CSV files to Excel (.xlsx) format using chunk-based processing. Handles files that may exceed Excel's row limit (1,048,576 rows).
+
+**Features:**
+- Chunk-based processing for memory efficiency
+- Progress bar with real-time statistics
+- Automatic handling of Excel row limits
+- File size and row count reporting
+
+**Usage:**
+```powershell
+# Basic conversion
+python csv_to_xlsx.py --input data.csv --output data.xlsx
+
+# With custom chunk size for large files
+python csv_to_xlsx.py -i huge_file.csv -o output.xlsx --chunk-size 100000
+```
+
+**Arguments:**
+- `--input`, `-i` - Path to input CSV file (required)
+- `--output`, `-o` - Path to output XLSX file (required)
+- `--chunk-size`, `-c` - Rows to process at a time (default: 50,000)
+
+**Notes:**
+- Excel has a maximum of 1,048,576 rows per worksheet
+- Files exceeding this limit will be truncated with a warning
+- Larger chunk sizes are faster but use more memory
+
+### 2. CSV Filter Tool (`filter_csv.py`)
+
+Filters CSV files based on field values with support for OR and AND logic. Uses chunk-based processing for large files.
+
+**Features:**
+- Case-insensitive filtering
+- OR logic with `||` operator
+- AND logic with `&&` operator
+- Progress bar with real-time statistics
+- Memory-efficient chunk-based processing
+
+**Usage:**
+```powershell
+# Filter for npm packages only
+python filter_csv.py --input data.csv --output npm_packages.csv --field PackageRepository --filter npm
+
+# Filter for multiple package repositories (OR logic)
+python filter_csv.py -i data.csv -o packages.csv -f PackageRepository --filter "npm||nuget||pypi"
+
+# Filter for high severity vulnerabilities (OR logic)
+python filter_csv.py -i data.csv -o high_sev.csv -f Severity --filter "high||critical"
+
+# Custom chunk size for large files
+python filter_csv.py -i huge_file.csv -o filtered.csv -f PackageRepository --filter npm --chunk-size 100000
+```
+
+**Arguments:**
+- `--input`, `-i` - Path to input CSV file (required)
+- `--output`, `-o` - Path to output CSV file (required)
+- `--field`, `-f` - Column name to filter on (required)
+- `--filter` - Filter criteria with OR (`||`) and AND (`&&`) logic (required)
+- `--chunk-size`, `-c` - Rows to process at a time (default: 50,000)
+
+**Common Use Cases:**
+```powershell
+# Filter by package repository
+python filter_csv.py -i packages.csv -o npm_only.csv -f PackageRepository --filter npm
+
+# Filter by severity (multiple values)
+python filter_csv.py -i packages.csv -o critical_pkgs.csv -f Severity --filter "high||critical"
+
+# Filter outdated packages
+python filter_csv.py -i packages.csv -o outdated.csv -f Outdated --filter true
+
+# Filter packages with vulnerabilities
+python filter_csv.py -i packages.csv -o vulnerable.csv -f VulnerabilityCount --filter ">0"
+```
+
+**Dependencies:**
+Both helper tools require additional dependencies:
+```powershell
+pip install pandas openpyxl tqdm
 ```
 
 ## Performance Considerations
