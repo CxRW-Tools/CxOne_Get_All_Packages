@@ -179,7 +179,7 @@ Default threading configuration:
 - Project discovery: 5 workers
 - Branch discovery: 20 workers
 - Scan queries: 20 workers
-- Report generation: 20 workers
+- Report generation: 10 workers
 
 ## Error Handling
 

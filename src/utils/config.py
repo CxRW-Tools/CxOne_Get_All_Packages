@@ -16,7 +16,7 @@ class Config:
         self.max_workers_projects = 5
         self.max_workers_branches = 20
         self.max_workers_scans = 20
-        self.max_workers_reports = 20
+        self.max_workers_reports = 10
         
         # Batching
         self.batch_size_branches = 100

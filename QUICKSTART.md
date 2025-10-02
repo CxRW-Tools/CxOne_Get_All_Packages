@@ -111,7 +111,7 @@ CxOne SCA Package Aggregator
 Tenant: myorg
 Base URL: https://ast.checkmarx.net
 Output Directory: ./output
-Max Report Workers: 20
+Max Report Workers: 10
 ================================================================================
 
 Stage 1: Discovering Projects
