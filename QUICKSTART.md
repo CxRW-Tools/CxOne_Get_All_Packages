@@ -46,6 +46,15 @@ python main.py --base-url "https://ast.checkmarx.net" --tenant-name "myorg" --ap
 python main.py --debug
 ```
 
+### With package filtering:
+```powershell
+# Only npm packages
+python main.py --filter-packages "PackageRepository=npm"
+
+# Only packages with critical vulnerabilities
+python main.py --filter-packages "CriticalVulnerabilityCount>0"
+```
+
 ## What It Does
 
 The tool will:
@@ -148,6 +157,7 @@ Execution time: 2h 15m 30s
 - `CXONE_DEBUG` - Set to `true` for detailed logging
 - `CXONE_MAX_WORKERS` - Number of worker threads (default: 20)
 - `CXONE_OUTPUT_DIR` - Output directory (default: ./output)
+- `CXONE_FILTER_PACKAGES` - Filter packages by field=value (optional)
 
 ### Command-Line Arguments
 - `--env-file PATH` - Specify environment file (default: .env)
@@ -157,6 +167,7 @@ Execution time: 2h 15m 30s
 - `--debug` - Enable debug mode
 - `--max-workers N` - Set max worker threads
 - `--output-dir PATH` - Set output directory
+- `--filter-packages` - Filter packages by field=value
 
 ## Performance Tuning
 

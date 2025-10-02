@@ -26,6 +26,8 @@ class ExceptionReporter:
             'packages_merged': 0,
             'files_processed': 0,
             'files_failed': 0,
+            'packages_filtered_out': 0,
+            'total_packages_before_filter': 0,
             'execution_time': '0h 0m 0s',
             'output_file': '',
             'output_size': ''
@@ -152,6 +154,9 @@ class ExceptionReporter:
         lines.append(f"Reports Generated:     {self.stats['reports_generated']:,}")
         lines.append(f"Reports Failed:        {self.stats['reports_failed']:,}")
         lines.append(f"Total Packages:        {self.stats['packages_merged']:,}")
+        if self.stats['packages_filtered_out'] > 0:
+            lines.append(f"Packages Filtered Out:    {self.stats['packages_filtered_out']:,}")
+            lines.append(f"Total Before Filtering:   {self.stats['total_packages_before_filter']:,}")
         lines.append(f"CSV Files Processed:   {self.stats['files_processed']:,}")
         lines.append(f"CSV Files Failed:      {self.stats['files_failed']:,}")
         lines.append(f"Execution Time:        {self.stats['execution_time']}")

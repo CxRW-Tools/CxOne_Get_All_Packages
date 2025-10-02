@@ -26,18 +26,30 @@ class DataMerger(Operation):
         output_path = file_manager.get_output_file_path()
         
         # Merge all CSV files
-        total_rows, files_processed, files_failed = csv_streamer.merge_files(
+        result = csv_streamer.merge_files(
             report_metadata,
             output_path,
-            exception_reporter
+            exception_reporter,
+            self.config.filter_packages
         )
+        
+        # Handle both old and new return formats for backward compatibility
+        if len(result) == 3:
+            total_rows, files_processed, files_failed = result
+            total_packages_before_filter = 0
+            packages_filtered_out = 0
+        else:
+            total_rows, files_processed, files_failed, total_packages_before_filter, packages_filtered_out = result
         
         if self.config.debug:
             print(f"\nData merge completed:")
             print(f"  - Total packages: {total_rows}")
             print(f"  - Files processed: {files_processed}")
             print(f"  - Files failed: {files_failed}")
+            if packages_filtered_out > 0:
+                print(f"  - Packages filtered out: {packages_filtered_out:,}")
+                print(f"  - Total packages before filtering: {total_packages_before_filter:,}")
             print(f"  - Output: {output_path}")
         
-        return output_path, total_rows, files_processed, files_failed
+        return output_path, total_rows, files_processed, files_failed, total_packages_before_filter, packages_filtered_out
 

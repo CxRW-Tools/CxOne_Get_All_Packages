@@ -48,6 +48,11 @@ class Config:
         # Error handling
         self.continue_on_errors = True
         self.log_errors_to_file = True
+        
+        # Package filtering
+        self.filter_packages = None
+        self.filter_packages_field = None
+        self.filter_packages_value = None
 
     @classmethod
     def from_args(cls, args):
@@ -98,6 +103,8 @@ class Config:
             config.max_workers_reports = int(os.getenv('CXONE_MAX_WORKERS'))
         if os.getenv('CXONE_OUTPUT_DIR'):
             config.output_directory = os.getenv('CXONE_OUTPUT_DIR')
+        if os.getenv('CXONE_FILTER_PACKAGES'):
+            config.filter_packages = os.getenv('CXONE_FILTER_PACKAGES')
             
         return config
 
@@ -113,4 +120,14 @@ class Config:
             return False, "Tenant name is required"
         if not self.api_key:
             return False, "API key is required"
+        
+        # Validate filter criteria if provided
+        if self.filter_packages:
+            if '=' not in self.filter_packages:
+                return False, "Package filter must be in format 'field=value'"
+            
+            parts = self.filter_packages.split('=', 1)
+            if len(parts) != 2 or not parts[0].strip() or not parts[1].strip():
+                return False, "Package filter must have both field and value (e.g., 'PackageRepository=npm')"
+        
         return True, None 

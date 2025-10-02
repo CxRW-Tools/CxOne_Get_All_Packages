@@ -19,6 +19,7 @@ This tool automates the process of:
 - **Robust error handling** with detailed logging
 - **Configurable** via environment variables or command-line arguments
 - **Production-ready** with retry logic and rate limiting
+- **Package filtering** with OR (||) and AND (&&) logic support
 
 ## Project Structure
 
@@ -73,6 +74,7 @@ Create a `.env` file or set environment variables:
 - `CXONE_DEBUG` - Enable debug output (set to `true` to enable)
 - `CXONE_MAX_WORKERS` - Maximum worker threads for report generation (optional)
 - `CXONE_OUTPUT_DIR` - Output directory (optional, default: `./output`)
+- `CXONE_FILTER_PACKAGES` - Filter packages by field=value with OR (||) and AND (&&) logic (optional)
 
 **Multi-Tenant Tip:** Create separate env files (e.g., `.env-rw`, `.env-tu`, `.env-prod`) for different tenants and specify which to use with `--env-file`.
 
@@ -85,6 +87,7 @@ Create a `.env` file or set environment variables:
 - `--debug` - Enable debug output
 - `--max-workers` - Maximum worker threads for report generation
 - `--output-dir` - Output directory for final CSV
+- `--filter-packages` - Filter packages by field=value with OR (||) and AND (&&) logic support
 
 Command line arguments take precedence over environment variables.
 
@@ -118,6 +121,21 @@ python main.py --debug
 With custom output directory and worker count:
 ```powershell
 python main.py --output-dir "C:\Reports" --max-workers 10
+```
+
+With package filtering:
+```powershell
+# Only npm packages
+python main.py --filter-packages "PackageRepository=npm"
+
+# Only npm and pypi packages (OR logic)
+python main.py --filter-packages "PackageRepository=npm||pypi"
+
+# Only packages with critical vulnerabilities
+python main.py --filter-packages "CriticalVulnerabilityCount>0"
+
+# Only outdated packages
+python main.py --filter-packages "Outdated=true"
 ```
 
 ## Output
@@ -253,6 +271,51 @@ python filter_csv.py -i packages.csv -o vulnerable.csv -f VulnerabilityCount --f
 ```
 
 **Note:** All dependencies for the helper tools are included in `requirements.txt`.
+
+## Package Filtering
+
+The tool supports filtering packages during the merge process using the `--filter-packages` argument or `CXONE_FILTER_PACKAGES` environment variable.
+
+### Filter Syntax
+
+- **Format**: `field=value`
+- **OR Logic**: Use `||` to match any of multiple values
+- **AND Logic**: Use `&&` to match all values (for string matching)
+- **Case Insensitive**: All comparisons are case-insensitive
+
+### Examples
+
+```powershell
+# Filter by package repository
+python main.py --filter-packages "PackageRepository=npm"
+python main.py --filter-packages "PackageRepository=npm||pypi||nuget"
+
+# Filter by vulnerability count
+python main.py --filter-packages "CriticalVulnerabilityCount>0"
+python main.py --filter-packages "HighVulnerabilityCount>0"
+
+# Filter by package status
+python main.py --filter-packages "Outdated=true"
+python main.py --filter-packages "Outdated=false"
+
+# Filter by package name (partial matching)
+python main.py --filter-packages "Name=react"
+python main.py --filter-packages "Name=react||vue||angular"
+```
+
+### Common Use Cases
+
+- **Security Focus**: `CriticalVulnerabilityCount>0` - Only packages with critical vulnerabilities
+- **Repository Focus**: `PackageRepository=npm` - Only npm packages
+- **Outdated Packages**: `Outdated=true` - Only outdated packages
+- **Multiple Repositories**: `PackageRepository=npm||pypi||nuget` - npm, Python, or .NET packages
+
+### Performance Impact
+
+- **Filtering occurs during CSV merging** (Stage 5)
+- **No impact on API calls** - all reports are still generated
+- **Reduces final CSV size** and processing time for downstream analysis
+- **Memory efficient** - filtering happens row-by-row during streaming
 
 ## Performance Considerations
 

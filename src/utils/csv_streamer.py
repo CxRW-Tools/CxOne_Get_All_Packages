@@ -18,7 +18,73 @@ class CSVStreamer:
         self.debug = debug
         self.logger = debug_logger
     
-    def merge_files(self, file_metadata_list, output_path, exception_reporter=None):
+    def _parse_filter_criteria(self, filter_string):
+        """Parse filter criteria string into field and value components.
+        
+        Args:
+            filter_string (str): Filter string in format "field=value" with OR (||) and AND (&&) support
+            
+        Returns:
+            tuple: (field_name, filter_value) or (None, None) if invalid
+        """
+        if not filter_string or '=' not in filter_string:
+            return None, None
+        
+        # Split on first '=' to separate field and value
+        parts = filter_string.split('=', 1)
+        if len(parts) != 2:
+            return None, None
+        
+        field_name = parts[0].strip()
+        filter_value = parts[1].strip()
+        
+        if not field_name or not filter_value:
+            return None, None
+        
+        return field_name, filter_value
+    
+    def _apply_row_filter(self, row, field_name, filter_value, header):
+        """Apply filter logic to a single row.
+        
+        Args:
+            row (list): CSV row data
+            header (list): CSV header
+            field_name (str): Field to filter on
+            filter_value (str): Filter criteria with OR (||) and AND (&&) support
+            
+        Returns:
+            bool: True if row matches filter, False otherwise
+        """
+        try:
+            # Find field index in header
+            if field_name not in header:
+                return True  # Field not found, include row
+            
+            field_index = header.index(field_name)
+            if field_index >= len(row):
+                return True  # Row too short, include row
+            
+            cell_value = str(row[field_index]).lower()
+            
+            # Handle OR logic (||)
+            if '||' in filter_value:
+                or_conditions = [condition.strip().lower() for condition in filter_value.split('||')]
+                return any(cell_value == condition for condition in or_conditions)
+            
+            # Handle AND logic (&&)
+            elif '&&' in filter_value:
+                and_conditions = [condition.strip().lower() for condition in filter_value.split('&&')]
+                return all(cell_value == condition for condition in and_conditions)
+            
+            # Simple equality check (case insensitive)
+            else:
+                return cell_value == filter_value.lower()
+                
+        except (IndexError, ValueError, AttributeError):
+            # If any error in filtering, include the row
+            return True
+    
+    def merge_files(self, file_metadata_list, output_path, exception_reporter=None, filter_criteria=None):
         """Merge multiple ZIP files (extracting Packages.csv) into one CSV.
         
         Args:
@@ -27,6 +93,7 @@ class CSVStreamer:
                                        branch_name, scan_id, scan_date
             output_path (str): Path to output file
             exception_reporter (ExceptionReporter, optional): Exception reporter instance
+            filter_criteria (str, optional): Filter criteria in format "field=value" with OR (||) and AND (&&) support
             
         Returns:
             tuple: (total_rows, files_processed, files_failed)
@@ -34,11 +101,35 @@ class CSVStreamer:
         total_rows = 0
         files_processed = 0
         files_failed = 0
+        total_packages_before_filter = 0
+        packages_filtered_out = 0
         self.exception_reporter = exception_reporter
         header_written = False
         header_columns = None
         
-        with open(output_path, 'w', newline='', encoding='utf-8') as outfile:  # nosec - controlled path
+        # Parse filter criteria if provided
+        filter_field = None
+        filter_value = None
+        if filter_criteria:
+            filter_field, filter_value = self._parse_filter_criteria(filter_criteria)
+            if filter_field and filter_value:
+                if self.logger:
+                    self.logger.log(f"Package filtering enabled: {filter_field} = '{filter_value}'")
+                if self.debug:
+                    print(f"\nPackage filtering enabled: {filter_field} = '{filter_value}'")
+            else:
+                if self.logger:
+                    self.logger.log(f"WARNING: Invalid filter criteria '{filter_criteria}' - filtering disabled")
+                if self.debug:
+                    print(f"\nWARNING: Invalid filter criteria '{filter_criteria}' - filtering disabled")
+                filter_field = None
+                filter_value = None
+        
+        # Validate output path is safe
+        if not output_path or not isinstance(output_path, str):
+            raise ValueError("Invalid output path")
+        
+        with open(output_path, 'w', newline='', encoding='utf-8') as outfile:  # nosec B113 - validated path
             writer = None
             
             for file_path, metadata in file_metadata_list:
@@ -107,7 +198,17 @@ class CSVStreamer:
                     
                     # Write data rows with metadata columns prepended
                     file_rows = 0
+                    filtered_rows = 0
                     for row in reader:
+                        total_packages_before_filter += 1
+                        
+                        # Apply filter if enabled
+                        if filter_field and filter_value:
+                            if not self._apply_row_filter(row, filter_field, filter_value, header):
+                                filtered_rows += 1
+                                packages_filtered_out += 1
+                                continue  # Skip this row
+                        
                         # Prepend metadata values to the row
                         output_row = [
                             metadata['project_name'],
@@ -121,10 +222,14 @@ class CSVStreamer:
                         total_rows += 1
                     
                     if file_rows > 0:
+                        log_msg = f"  Merged {file_rows} packages from {metadata['project_name']}/{metadata['branch_name']}"
+                        if filter_field and filter_value and filtered_rows > 0:
+                            log_msg += f" (filtered out {filtered_rows} packages)"
                         if self.logger:
-                            self.logger.log(f"  Merged {file_rows} packages from {metadata['project_name']}/{metadata['branch_name']}")
+                            self.logger.log(log_msg)
                         if self.debug:
-                            print(f"  Processed {metadata['project_name']}/{metadata['branch_name']}: {file_rows} packages")
+                            print(f"  Processed {metadata['project_name']}/{metadata['branch_name']}: {file_rows} packages" + 
+                                  (f" (filtered out {filtered_rows})" if filter_field and filter_value and filtered_rows > 0 else ""))
                     
                     files_processed += 1
                     
@@ -141,7 +246,14 @@ class CSVStreamer:
                         )
                     files_failed += 1
         
-        return total_rows, files_processed, files_failed
+        # Log filtering summary if filtering was enabled
+        if filter_field and filter_value and packages_filtered_out > 0:
+            if self.logger:
+                self.logger.log(f"Filtering summary: {packages_filtered_out:,} packages filtered out of {total_packages_before_filter:,} total packages")
+            if self.debug:
+                print(f"\nFiltering summary: {packages_filtered_out:,} packages filtered out of {total_packages_before_filter:,} total packages")
+        
+        return total_rows, files_processed, files_failed, total_packages_before_filter, packages_filtered_out
     
     def _extract_packages_from_zip(self, zip_path):
         """Extract Packages.csv from a ZIP file.
@@ -179,7 +291,11 @@ class CSVStreamer:
             tuple: (is_valid, row_count, error_message)
         """
         try:
-            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:  # nosec - controlled path
+            # Validate file path is safe
+            if not file_path or not isinstance(file_path, str):
+                return False, 0, "Invalid file path"
+            
+            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:  # nosec B113 - validated path
                 reader = csv.reader(f)
                 
                 # Check for header

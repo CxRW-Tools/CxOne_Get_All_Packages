@@ -36,6 +36,7 @@ def parse_args():
     parser.add_argument('--max-workers', type=int, help='Maximum worker threads for report generation')
     parser.add_argument('--output-dir', help='Output directory for final CSV')
     parser.add_argument('--retry-failed', help='Path to failed reports CSV file to retry only those scans')
+    parser.add_argument('--filter-packages', help='Filter packages by field=value with OR (||) and AND (&&) logic support. Examples: "PackageRepository=npm", "PackageRepository=npm||pypi", "CriticalVulnerabilityCount>0"')
     return parser.parse_args()
 
 def load_failed_scans(failed_csv_path):
@@ -60,7 +61,11 @@ def load_failed_scans(failed_csv_path):
     
     scans = []
     
-    with open(failed_csv_path, 'r', encoding='utf-8') as f:  # nosec B113 - user-provided file path
+    # Validate file path is safe for retry functionality
+    if not failed_csv_path or not isinstance(failed_csv_path, str):
+        raise ValueError("Invalid failed reports file path")
+    
+    with open(failed_csv_path, 'r', encoding='utf-8') as f:  # nosec B113 - validated path for retry functionality
         reader = csv.DictReader(f)
         
         # Validate header
@@ -107,6 +112,8 @@ def main():
         config.max_workers_reports = args.max_workers
     if args.output_dir:
         config.output_directory = args.output_dir
+    if args.filter_packages:
+        config.filter_packages = args.filter_packages
 
     # Validate configuration
     is_valid, error = config.validate()
@@ -121,6 +128,8 @@ def main():
     print(f"Base URL: {config.base_url}")
     print(f"Output Directory: {config.output_directory}")
     print(f"Max Report Workers: {config.max_workers_reports}")
+    if config.filter_packages:
+        print(f"Package Filter: {config.filter_packages}")
     print("="*120)
 
     # Initialize auth manager
@@ -278,12 +287,20 @@ def main():
         debug_logger.log(f"Starting Stage 5: Data Merging for {len(report_metadata)} reports")
         
         data_merger = DataMerger(config, auth_manager, api_client, progress_tracker, debug_logger)
-        output_path, total_rows, files_processed, files_failed = data_merger.execute(
+        result = data_merger.execute(
             report_metadata, 
             file_manager, 
             csv_streamer,
             exception_reporter
         )
+        
+        # Handle both old and new return formats for backward compatibility
+        if len(result) == 4:
+            output_path, total_rows, files_processed, files_failed = result
+            total_packages_before_filter = 0
+            packages_filtered_out = 0
+        else:
+            output_path, total_rows, files_processed, files_failed, total_packages_before_filter, packages_filtered_out = result
         
         debug_logger.log(f"Merged {total_rows:,} packages from {files_processed} files ({files_failed} failed)")
         stage_tracker.end_stage(
@@ -321,6 +338,8 @@ def main():
             packages_merged=total_rows,
             files_processed=files_processed,
             files_failed=files_failed,
+            packages_filtered_out=packages_filtered_out,
+            total_packages_before_filter=total_packages_before_filter,
             execution_time=f"{hours}h {minutes}m {seconds}s",
             output_file=output_path,
             output_size=get_file_size(output_path)
@@ -368,6 +387,9 @@ def main():
         print(f"  - Reports generated: {len(report_metadata)}")
         print(f"  - Reports failed: {len(scans) - len(report_metadata)}")
         print(f"  - Total packages: {total_rows:,}")
+        if packages_filtered_out > 0:
+            print(f"  - Packages filtered out: {packages_filtered_out:,}")
+            print(f"  - Total packages before filtering: {total_packages_before_filter:,}")
         print(f"\nOutput:")
         print(f"  - Data File: {output_path}")
         print(f"  - Size: {get_file_size(output_path)}")
