@@ -56,8 +56,7 @@ class ScanFinder(Operation):
                         self.progress.update(1)
                         self.progress.set_postfix(
                             found=len(scans_found),
-                            not_found=not_found_count,
-                            errors=error_count
+                            not_found=not_found_count
                         )
                         
                 except Exception as e:
@@ -69,6 +68,13 @@ class ScanFinder(Operation):
                     # Report scan error
                     if exception_reporter:
                         exception_reporter.add_scan_error(branch.project_name, branch.branch_name, str(e))
+                    
+                    if self.progress:
+                        self.progress.update(1)
+                        self.progress.set_postfix(
+                            found=len(scans_found),
+                            not_found=not_found_count
+                        )
         
         if self.logger:
             self.logger.log(f"Scan discovery completed: {len(scans_found)} found, {not_found_count} not found, {error_count} errors")
@@ -176,9 +182,20 @@ class ScanFinder(Operation):
             scan_status = scan_data.get('status', '')
             if scan_status == 'Partial':
                 if not self._is_sca_completed(scan_data):
+                    if self.logger:
+                        self.logger.log(f"  Skipping Partial scan {scan_data.get('id')} - SCA did not complete")
                     if self.config.debug:
                         print(f"\nSkipping Partial scan {scan_data.get('id')} - SCA did not complete")
                     continue
+            
+            # Check if scan has actual package results
+            scan_id = scan_data.get('id')
+            if not self._has_package_results(scan_id):
+                if self.logger:
+                    self.logger.log(f"  Skipping scan {scan_id} - No package results found")
+                if self.config.debug:
+                    print(f"\nSkipping scan {scan_id} - No package results")
+                continue
             
             # Valid SCA scan found - need to extract branch info from scan_data
             scan = Scan(
@@ -211,4 +228,53 @@ class ScanFinder(Operation):
         
         # If no SCA statusDetails found, assume not completed
         return False
+    
+    def _has_package_results(self, scan_id):
+        """Check if a scan has actual package results.
+        
+        Uses the scan-summary API to check if scaPackagesCounters.totalCounter > 0
+        
+        Args:
+            scan_id (str): Scan ID to check
+            
+        Returns:
+            bool: True if scan has packages, False otherwise
+        """
+        try:
+            # Call scan-summary endpoint with the scan ID
+            # Endpoint: GET /api/scan-summary?scan-ids={scan_id}
+            params = {'scan-ids': scan_id}
+            response_data = self.api_client.get('/api/scan-summary', params=params)
+            
+            if not response_data:
+                if self.logger:
+                    self.logger.log(f"  WARNING: No response from scan-summary API for scan {scan_id}")
+                # If we can't check, assume it has packages to avoid false negatives
+                return True
+            
+            # Extract scaPackagesCounters from the response
+            scans_summaries = response_data.get('scansSummaries', [])
+            if not scans_summaries:
+                if self.logger:
+                    self.logger.log(f"  WARNING: No scan summary found for scan {scan_id}")
+                # If we can't check, assume it has packages to avoid false negatives
+                return True
+            
+            # Get the first (and should be only) summary
+            summary = scans_summaries[0]
+            sca_packages_counters = summary.get('scaPackagesCounters', {})
+            total_packages = sca_packages_counters.get('totalCounter', 0)
+            
+            if self.logger:
+                self.logger.log(f"  Scan {scan_id} has {total_packages} packages")
+            
+            return total_packages > 0
+            
+        except Exception as e:
+            if self.logger:
+                self.logger.log(f"  ERROR: Failed to check package results for scan {scan_id}: {e}")
+            if self.config.debug:
+                print(f"\nError checking package results for scan {scan_id}: {e}")
+            # If we can't check due to error, assume it has packages to avoid false negatives
+            return True
 
