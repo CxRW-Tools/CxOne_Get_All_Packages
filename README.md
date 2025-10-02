@@ -252,11 +252,7 @@ python filter_csv.py -i packages.csv -o outdated.csv -f Outdated --filter true
 python filter_csv.py -i packages.csv -o vulnerable.csv -f VulnerabilityCount --filter ">0"
 ```
 
-**Dependencies:**
-Both helper tools require additional dependencies:
-```powershell
-pip install pandas openpyxl tqdm
-```
+**Note:** All dependencies for the helper tools are included in `requirements.txt`.
 
 ## Performance Considerations
 
