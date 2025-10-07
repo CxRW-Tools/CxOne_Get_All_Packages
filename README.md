@@ -6,7 +6,7 @@ A comprehensive tool for aggregating SCA (Software Composition Analysis) package
 
 This tool automates the process of:
 1. Discovering all projects in your CxOne tenant
-2. Discovering all branches by extracting unique branch names from scans (CxOne has no dedicated branches endpoint)
+2. Discovering all branches by extracting unique branch names from scans
 3. Finding the most recent successful SCA scan for each project-branch combination
 4. Generating and downloading SCA package reports
 5. Merging all reports into a single CSV with branch information
