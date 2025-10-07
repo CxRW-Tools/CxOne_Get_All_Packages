@@ -76,7 +76,7 @@ Create a `.env` file or set environment variables:
 - `CXONE_OUTPUT_DIR` - Output directory (optional, default: `./output`)
 - `CXONE_FILTER_PACKAGES` - Filter packages by field=value with OR (||) and AND (&&) logic (optional)
 
-**Multi-Tenant Tip:** Create separate env files (e.g., `.env-rw`, `.env-tu`, `.env-prod`) for different tenants and specify which to use with `--env-file`.
+**Multi-Tenant Tip:** Create separate env files (e.g., `.env-rw`, `.env-test`, `.env-prod`) for different tenants and specify which to use with `--env-file`.
 
 ### Command Line Arguments
 
@@ -110,7 +110,7 @@ python main.py --base-url "https://ast.checkmarx.net" --tenant-name "myorg" --ap
 With a specific environment file:
 ```powershell
 python main.py --env-file .env-rw
-python main.py --env-file .env-tu
+python main.py --env-file .env-test
 ```
 
 With debugging enabled:
@@ -319,7 +319,7 @@ python main.py --filter-packages "Name=react||vue||angular"
 
 ## Performance Considerations
 
-For large tenants with thousands of projects:
+For large tenants with tens of thousands of projects:
 - **Expected runtime**: Hours (depending on scale)
 - **Memory usage**: Optimized for streaming (minimal memory footprint)
 - **Threading**: Configurable workers for optimal performance
@@ -338,25 +338,6 @@ The tool is designed to handle errors gracefully:
 - Missing SCA scans are silently skipped
 - Failed report generations are logged but don't stop execution
 - Partial results are saved even if some operations fail
-
-## Future Enhancements
-
-Potential future features:
-- Incremental updates (only process changed projects)
-- Resume capability (continue from interrupted execution)
-- Filtering options (by project pattern, date range)
-- Email/webhook notifications for long-running jobs
-- JSON output format option
-
-## Implementation Notes
-
-### Branch Discovery
-CxOne does not have a dedicated branches endpoint. Instead, branches are discovered by:
-1. Querying all scans for each project
-2. Extracting unique branch names from the scan data
-3. Creating a list of unique project-branch combinations
-
-This means only branches that have at least one scan will be discovered. Branches with no scans will not appear in the results.
 
 ## Troubleshooting
 
