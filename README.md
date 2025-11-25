@@ -301,6 +301,9 @@ python main.py --filter-packages "Outdated=false"
 # Filter by package name (partial matching)
 python main.py --filter-packages "Name=react"
 python main.py --filter-packages "Name=react||vue||angular"
+
+# Filter for malicious packages
+python main.py --filter-packages "IsMalicious=true"
 ```
 
 ### Common Use Cases
