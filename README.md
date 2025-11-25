@@ -51,6 +51,8 @@ This tool automates the process of:
 ├── csv_to_xlsx.py          # Helper: CSV to Excel converter
 ├── filter_csv.py           # Helper: CSV filtering tool
 ├── requirements.txt         # Dependencies
+├── example.env             # Example environment file template
+├── LICENSE                 # MIT License
 └── README.md               # This file
 ```
 
@@ -60,6 +62,11 @@ This tool automates the process of:
 2. Install dependencies:
    ```powershell
    pip install -r requirements.txt
+   ```
+3. (Optional) Copy `example.env` to `.env` and configure your CxOne credentials:
+   ```powershell
+   copy example.env .env
+   # Edit .env with your credentials
    ```
 
 ## Configuration
@@ -76,7 +83,7 @@ Create a `.env` file or set environment variables:
 - `CXONE_OUTPUT_DIR` - Output directory (optional, default: `./output`)
 - `CXONE_FILTER_PACKAGES` - Filter packages by field=value with OR (||) and AND (&&) logic (optional)
 
-**Multi-Tenant Tip:** Create separate env files (e.g., `.env-rw`, `.env-test`, `.env-prod`) for different tenants and specify which to use with `--env-file`.
+**Multi-Tenant Tip:** Create separate env files (e.g., `.env-rw`, `.env-test`, `.env-prod`) for different tenants and specify which to use with `--env-file`. You can use `example.env` as a template.
 
 ### Command Line Arguments
 
@@ -88,6 +95,7 @@ Create a `.env` file or set environment variables:
 - `--max-workers` - Maximum worker threads for report generation
 - `--output-dir` - Output directory for final CSV
 - `--filter-packages` - Filter packages by field=value with OR (||) and AND (&&) logic support
+- `--retry-failed` - Path to failed reports CSV file to retry only those scans
 
 Command line arguments take precedence over environment variables.
 
@@ -123,6 +131,12 @@ With custom output directory and worker count:
 python main.py --output-dir "C:\Reports" --max-workers 10
 ```
 
+Retrying failed reports:
+```powershell
+# Retry only the scans that failed in a previous run
+python main.py --retry-failed "output\sca_packages_tenant_20251001_143022_failed-reports.csv"
+```
+
 With package filtering:
 ```powershell
 # Only npm packages
@@ -140,7 +154,7 @@ python main.py --filter-packages "Outdated=true"
 
 ## Output
 
-The tool generates three files in the output directory:
+The tool generates three main files in the output directory (plus an optional fourth file if there are failures):
 
 ### 1. Data File (CSV)
 ```
@@ -163,15 +177,15 @@ sca_packages_{tenant}_{timestamp}_report.txt
 ```
 
 The report includes:
-- **Summary Statistics** - Overview of execution (projects, branches, scans, packages)
+- **Summary Statistics** - Overview of execution (projects, branches, scans, packages, filtering stats if applicable)
 - **Branches Without SCA Scans** - List of branches that had no SCA scans
-- **Report Generation Errors** - Details of any failed report generations
+- **Report Generation Errors** - Details of any failed report generations (see `*_failed-reports.csv` for retry capability)
 - **ZIP Extraction Warnings** - Issues with extracting or parsing ZIP files
 - **Scan Errors** - Errors encountered during scan discovery
 - **API Errors** - Problems communicating with the CxOne API
 - **General Warnings** - Other warnings encountered during execution
 
-The report is organized by category (not chronologically) for easy review and debugging.
+The report is organized by category (not chronologically) for easy review and debugging. If filtering was enabled, the summary statistics will include packages filtered out and total packages before filtering.
 
 ### 3. Debug Log (TXT)
 ```
@@ -187,6 +201,24 @@ A live debug log that is **always generated** (regardless of `--debug` flag) con
 This file is invaluable for troubleshooting long-running jobs and can be tailed during execution:
 ```powershell
 Get-Content -Path "output\sca_packages_tenant_20251001_143022_debug.txt" -Wait -Tail 50
+```
+
+### 4. Failed Reports CSV (Optional)
+```
+sca_packages_{tenant}_{timestamp}_failed-reports.csv
+```
+
+This file is **only generated if there are failed report generations**. It contains:
+- **ProjectName** - Name of the project
+- **ProjectId** - Unique project identifier
+- **BranchName** - Git branch name
+- **ScanId** - Unique scan identifier
+- **ScanDate** - Timestamp when the scan was created
+- **ErrorMessage** - Details of why the report generation failed
+
+This file can be used with the `--retry-failed` argument to retry only the failed scans:
+```powershell
+python main.py --retry-failed "output\sca_packages_tenant_20251001_143022_failed-reports.csv"
 ```
 
 ## Helper Tools
