@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 CSV Filter Script
-Filters a CSV file to only include rows where PackageRepository equals "npm" (case insensitive).
+Filters a CSV file based on field=value criteria with OR (||) and AND (&&) logic support.
 Uses chunk-based processing for large files.
+Matches the syntax used by the main tool (--filter-packages).
 """
 
 import argparse
@@ -10,13 +11,39 @@ import sys
 from pathlib import Path
 import pandas as pd
 import tqdm
-import re
+
+
+def parse_filter_criteria(filter_string):
+    """Parse filter criteria string into field and value components.
+    
+    Args:
+        filter_string (str): Filter string in format "field=value" with OR (||) and AND (&&) support
+        
+    Returns:
+        tuple: (field_name, filter_value) or (None, None) if invalid
+    """
+    if not filter_string or '=' not in filter_string:
+        return None, None
+    
+    # Split on first '=' to separate field and value
+    parts = filter_string.split('=', 1)
+    if len(parts) != 2:
+        return None, None
+    
+    field_name = parts[0].strip()
+    filter_value = parts[1].strip()
+    
+    if not field_name or not filter_value:
+        return None, None
+    
+    return field_name, filter_value
 
 
 def apply_filter_logic(df, field, filter_value):
     """
     Apply filter logic to DataFrame based on field and filter criteria.
     Supports OR (||) and AND (&&) logic.
+    Handles non-string columns by converting to string first.
     
     Args:
         df (DataFrame): DataFrame to filter
@@ -26,13 +53,14 @@ def apply_filter_logic(df, field, filter_value):
     Returns:
         DataFrame: Filtered DataFrame
     """
-    # Convert field to lowercase for case-insensitive comparison
-    field_lower = df[field].str.lower()
+    # Convert column to string for comparison (handles boolean, numeric, etc.)
+    # Use astype(str) instead of .str accessor to handle all types
+    field_values = df[field].astype(str).str.lower()
     
     # Handle OR logic (||)
     if '||' in filter_value:
         # Split by || and create OR condition
-        or_conditions = [field_lower == condition.strip().lower() for condition in filter_value.split('||')]
+        or_conditions = [field_values == condition.strip().lower() for condition in filter_value.split('||')]
         # Combine with OR logic
         combined_condition = or_conditions[0]
         for condition in or_conditions[1:]:
@@ -42,7 +70,7 @@ def apply_filter_logic(df, field, filter_value):
     # Handle AND logic (&&)
     elif '&&' in filter_value:
         # Split by && and create AND condition
-        and_conditions = [field_lower == condition.strip().lower() for condition in filter_value.split('&&')]
+        and_conditions = [field_values == condition.strip().lower() for condition in filter_value.split('&&')]
         # Combine with AND logic
         combined_condition = and_conditions[0]
         for condition in and_conditions[1:]:
@@ -51,23 +79,27 @@ def apply_filter_logic(df, field, filter_value):
     
     # Simple equality check (case insensitive)
     else:
-        return df[field_lower == filter_value.lower()]
+        return df[field_values == filter_value.lower()]
 
 
-def filter_csv(input_file, output_file, field, filter_value, chunk_size=50000):
+def filter_csv(input_file, output_file, filter_criteria, chunk_size=50000):
     """
-    Filter a CSV file based on specified field and filter criteria.
+    Filter a CSV file based on filter criteria in field=value format.
     
     Args:
         input_file (str): Path to the input CSV file
         output_file (str): Path to the output CSV file
-        field (str): Column name to filter on
-        filter_value (str): Filter criteria supporting OR (||) and AND (&&) logic
+        filter_criteria (str): Filter criteria in format "field=value" with OR (||) and AND (&&) support
         chunk_size (int): Number of rows to process at a time (default: 50000)
         
     Returns:
         bool: True if filtering successful, False otherwise
     """
+    # Parse filter criteria
+    field, filter_value = parse_filter_criteria(filter_criteria)
+    if not field or not filter_value:
+        print(f"Error: Invalid filter criteria '{filter_criteria}'. Must be in format 'field=value'", file=sys.stderr)
+        return False
     try:
         # Check if input file exists and resolve to absolute path
         input_path = Path(input_file).resolve()
@@ -162,8 +194,8 @@ def filter_csv(input_file, output_file, field, filter_value, chunk_size=50000):
             progress_bar.update(chunk_rows)
             progress_bar.set_postfix({
                 'chunk': chunk_num,
-                'npm_found': filtered_rows,
-                'total_npm': total_rows_written
+                'matched': filtered_rows,
+                'total_matched': total_rows_written
             })
         
         # Close progress bar
@@ -175,7 +207,7 @@ def filter_csv(input_file, output_file, field, filter_value, chunk_size=50000):
         print(f"  Columns: {num_columns}")
         
         if total_rows_written == 0:
-            print(f"\n⚠ Warning: No rows found matching filter criteria: {field} = '{filter_value}'")
+            print(f"\n⚠ Warning: No rows found matching filter criteria: {filter_criteria}")
         
         return True
         
@@ -199,36 +231,41 @@ def filter_csv(input_file, output_file, field, filter_value, chunk_size=50000):
 def main():
     """Main function to handle command-line arguments and execute filtering."""
     parser = argparse.ArgumentParser(
-        description='Filter a CSV file based on specified field and filter criteria with OR (||) and AND (&&) logic support.',
+        description='Filter a CSV file based on field=value criteria with OR (||) and AND (&&) logic support. Uses the same syntax as the main tool.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Filter for npm packages only
-  %(prog)s --input data.csv --output npm_packages.csv --field PackageRepository --filter npm
+  %(prog)s --input data.csv --output npm_packages.csv --filter-packages "PackageRepository=npm"
   
   # Filter for both npm and nuget packages (OR logic)
-  %(prog)s -i data.csv -o packages.csv -f PackageRepository --filter "npm||nuget"
+  %(prog)s -i data.csv -o packages.csv --filter-packages "PackageRepository=npm||nuget"
   
-  # Filter for specific package names (AND logic)
-  %(prog)s -i data.csv -o filtered.csv -f Name --filter "react&&typescript"
+  # Filter for packages with critical vulnerabilities
+  %(prog)s -i data.csv -o critical.csv --filter-packages "CriticalVulnerabilityCount>0"
   
-  # Filter for high severity vulnerabilities
-  %(prog)s -i data.csv -o high_severity.csv -f Severity --filter "high||critical"
+  # Filter for malicious packages
+  %(prog)s -i data.csv -o malicious.csv --filter-packages "IsMalicious=true"
+  
+  # Filter for outdated packages
+  %(prog)s -i data.csv -o outdated.csv --filter-packages "Outdated=true"
   
   # Custom chunk size for large files
-  %(prog)s -i huge_file.csv -o filtered.csv -f PackageRepository --filter npm --chunk-size 100000
+  %(prog)s -i huge_file.csv -o filtered.csv --filter-packages "PackageRepository=npm" --chunk-size 100000
 
-Filter Logic:
-  - Use || for OR logic: "npm||nuget" matches npm OR nuget packages
-  - Use && for AND logic: "react&&typescript" matches packages containing both terms
+Filter Syntax:
+  - Format: "field=value"
+  - Use || for OR logic: "PackageRepository=npm||pypi" matches npm OR pypi packages
+  - Use && for AND logic: "Name=react&&typescript" matches packages containing both terms
   - Case insensitive matching
   - No spaces around || and && operators
+  - Handles string, boolean, and numeric columns
 
 Common Use Cases:
-  - Package repositories: --field PackageRepository --filter "npm||nuget||pypi"
-  - Severity levels: --field Severity --filter "high||critical"
-  - Package names: --field Name --filter "react||vue||angular"
-  - Vulnerability counts: --field CriticalVulnerabilityCount --filter ">0"
+  - Package repositories: --filter-packages "PackageRepository=npm||nuget||pypi"
+  - Vulnerability counts: --filter-packages "CriticalVulnerabilityCount>0"
+  - Package status: --filter-packages "Outdated=true"
+  - Malicious packages: --filter-packages "IsMalicious=true"
         """
     )
     
@@ -245,15 +282,9 @@ Common Use Cases:
     )
     
     parser.add_argument(
-        '--field', '-f',
+        '--filter-packages',
         required=True,
-        help='Column name to filter on'
-    )
-    
-    parser.add_argument(
-        '--filter',
-        required=True,
-        help='Filter criteria supporting OR (||) and AND (&&) logic'
+        help='Filter criteria in format "field=value" with OR (||) and AND (&&) logic support. Examples: "PackageRepository=npm", "IsMalicious=true"'
     )
     
     parser.add_argument(
@@ -274,7 +305,7 @@ Common Use Cases:
         print("Warning: Very large chunk size may cause memory issues.", file=sys.stderr)
     
     # Perform filtering
-    success = filter_csv(args.input, args.output, args.field, args.filter, args.chunk_size)
+    success = filter_csv(args.input, args.output, args.filter_packages, args.chunk_size)
     
     # Exit with appropriate status code
     sys.exit(0 if success else 1)

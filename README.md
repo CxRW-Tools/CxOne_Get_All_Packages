@@ -236,39 +236,46 @@ Filters CSV files based on field values with support for OR and AND logic. Uses 
 **Usage:**
 ```powershell
 # Filter for npm packages only
-python filter_csv.py --input data.csv --output npm_packages.csv --field PackageRepository --filter npm
+python filter_csv.py --input data.csv --output npm_packages.csv --filter-packages "PackageRepository=npm"
 
 # Filter for multiple package repositories (OR logic)
-python filter_csv.py -i data.csv -o packages.csv -f PackageRepository --filter "npm||nuget||pypi"
+python filter_csv.py -i data.csv -o packages.csv --filter-packages "PackageRepository=npm||nuget||pypi"
 
-# Filter for high severity vulnerabilities (OR logic)
-python filter_csv.py -i data.csv -o high_sev.csv -f Severity --filter "high||critical"
+# Filter for malicious packages
+python filter_csv.py -i data.csv -o malicious.csv --filter-packages "IsMalicious=true"
+
+# Filter for outdated packages
+python filter_csv.py -i data.csv -o outdated.csv --filter-packages "Outdated=true"
 
 # Custom chunk size for large files
-python filter_csv.py -i huge_file.csv -o filtered.csv -f PackageRepository --filter npm --chunk-size 100000
+python filter_csv.py -i huge_file.csv -o filtered.csv --filter-packages "PackageRepository=npm" --chunk-size 100000
 ```
 
 **Arguments:**
 - `--input`, `-i` - Path to input CSV file (required)
 - `--output`, `-o` - Path to output CSV file (required)
-- `--field`, `-f` - Column name to filter on (required)
-- `--filter` - Filter criteria with OR (`||`) and AND (`&&`) logic (required)
+- `--filter-packages` - Filter criteria in format "field=value" with OR (`||`) and AND (`&&`) logic (required)
 - `--chunk-size`, `-c` - Rows to process at a time (default: 50,000)
 
 **Common Use Cases:**
 ```powershell
 # Filter by package repository
-python filter_csv.py -i packages.csv -o npm_only.csv -f PackageRepository --filter npm
+python filter_csv.py -i packages.csv -o npm_only.csv --filter-packages "PackageRepository=npm"
 
-# Filter by severity (multiple values)
-python filter_csv.py -i packages.csv -o critical_pkgs.csv -f Severity --filter "high||critical"
+# Filter by multiple repositories (OR logic)
+python filter_csv.py -i packages.csv -o packages.csv --filter-packages "PackageRepository=npm||pypi||nuget"
+
+# Filter malicious packages
+python filter_csv.py -i packages.csv -o malicious.csv --filter-packages "IsMalicious=true"
 
 # Filter outdated packages
-python filter_csv.py -i packages.csv -o outdated.csv -f Outdated --filter true
+python filter_csv.py -i packages.csv -o outdated.csv --filter-packages "Outdated=true"
 
 # Filter packages with vulnerabilities
-python filter_csv.py -i packages.csv -o vulnerable.csv -f VulnerabilityCount --filter ">0"
+python filter_csv.py -i packages.csv -o vulnerable.csv --filter-packages "CriticalVulnerabilityCount>0"
 ```
+
+**Note:** The filter syntax matches the main tool (`--filter-packages "field=value"`), making it consistent across both tools.
 
 **Note:** All dependencies for the helper tools are included in `requirements.txt`.
 
