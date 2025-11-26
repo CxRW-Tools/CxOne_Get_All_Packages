@@ -84,7 +84,7 @@ class CSVStreamer:
             # If any error in filtering, include the row
             return True
     
-    def merge_files(self, file_metadata_list, output_path, exception_reporter=None, filter_criteria=None):
+    def merge_files(self, file_metadata_list, output_path, exception_reporter=None, filter_criteria=None, progress_tracker=None):
         """Merge multiple ZIP files (extracting Packages.csv) into one CSV.
         
         Args:
@@ -94,6 +94,7 @@ class CSVStreamer:
             output_path (str): Path to output file
             exception_reporter (ExceptionReporter, optional): Exception reporter instance
             filter_criteria (str, optional): Filter criteria in format "field=value" with OR (||) and AND (&&) support
+            progress_tracker (ProgressTracker, optional): Progress tracker instance for progress bar updates
             
         Returns:
             tuple: (total_rows, files_processed, files_failed)
@@ -233,6 +234,15 @@ class CSVStreamer:
                     
                     files_processed += 1
                     
+                    # Update progress bar if provided
+                    if progress_tracker:
+                        progress_tracker.update(1)
+                        progress_tracker.set_postfix(
+                            processed=files_processed,
+                            failed=files_failed,
+                            packages=total_rows
+                        )
+                    
                 except Exception as e:
                     if self.debug:
                         print(f"  Error processing {file_path}: {e}")
@@ -245,6 +255,15 @@ class CSVStreamer:
                             f"Error processing ZIP: {str(e)}"
                         )
                     files_failed += 1
+                    
+                    # Update progress bar if provided
+                    if progress_tracker:
+                        progress_tracker.update(1)
+                        progress_tracker.set_postfix(
+                            processed=files_processed,
+                            failed=files_failed,
+                            packages=total_rows
+                        )
         
         # Log filtering summary if filtering was enabled
         if filter_field and filter_value and packages_filtered_out > 0:
