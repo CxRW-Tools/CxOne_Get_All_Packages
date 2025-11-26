@@ -30,7 +30,8 @@ class DataMerger(Operation):
             report_metadata,
             output_path,
             exception_reporter,
-            self.config.filter_packages
+            self.config.filter_packages,
+            self.progress
         )
         
         # Handle both old and new return formats for backward compatibility

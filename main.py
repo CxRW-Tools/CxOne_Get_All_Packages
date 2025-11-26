@@ -286,6 +286,8 @@ def main():
         stage_tracker.start_stage("Stage 5: Merging Reports")
         debug_logger.log(f"Starting Stage 5: Data Merging for {len(report_metadata)} reports")
         
+        progress_bar = progress_tracker.create_bar(len(report_metadata), "Merging reports", "files")
+        
         data_merger = DataMerger(config, auth_manager, api_client, progress_tracker, debug_logger)
         result = data_merger.execute(
             report_metadata, 
@@ -293,6 +295,8 @@ def main():
             csv_streamer,
             exception_reporter
         )
+        
+        progress_tracker.close()
         
         # Handle both old and new return formats for backward compatibility
         if len(result) == 4:
